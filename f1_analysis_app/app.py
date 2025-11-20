@@ -65,12 +65,32 @@ session = None
 if load_btn:
     with st.spinner("Loading session data..."):
         try:
+            # Load session into a cached resource and store in session_state so it
+            # is not recreated on every rerun when widgets change.
             session = _cached_session(year, gp_name, session_type)
+            st.session_state["f1_session"] = session
+            st.session_state["session_info"] = (year, gp_name, session_type)
+            # reset telemetry update flag so telemetry won't run until user triggers
+            st.session_state["telemetry_updated"] = False
             st.success(f"Loaded {session_type} - {gp_name} {year}")
         except Exception as e:
             st.warning(f"Failed to load session: {e}")
 
 team_colors = get_team_colors()
+
+
+# Cached loader wrapper for FastF1 session (prevents reloading on widget change)
+@st.cache_resource
+def load_fastf1_session_cached(year: int, gp_name: str, session_type: str):
+    return load_session(year, gp_name, session_type)
+
+
+# Cached telemetry comparison so it doesn't recompute unless inputs change
+@st.cache_data
+def cached_telemetry_compare(year: int, gp_name: str, session_type: str, d1: str, d2: str):
+    # Use the cached session loader here to ensure consistent session object
+    session = load_fastf1_session_cached(year, gp_name, session_type)
+    return telemetry_overlay_data(session, d1, d2)
 
 # Page tabs
 pages = st.tabs(["Home", "Driver Analysis", "Telemetry", "Strategy"])
@@ -126,29 +146,53 @@ with pages[1]:
 # --- TELEMETRY PAGE ---
 with pages[2]:
     st.subheader("Telemetry Comparison")
+    # Use the session stored in st.session_state to avoid reloading on widget change
+    session = st.session_state.get("f1_session")
     if session is None:
-        st.info("Load a session first.")
+        st.info("Load a session first from the sidebar and click 'Load Session'.")
     else:
         drivers = get_drivers(session)
+
+        # Initialize session state keys for telemetry drivers and update flag
+        if "telemetry_driver_1" not in st.session_state:
+            st.session_state.telemetry_driver_1 = drivers[0] if drivers else ""
+        if "telemetry_driver_2" not in st.session_state:
+            st.session_state.telemetry_driver_2 = drivers[1] if len(drivers) > 1 else st.session_state.telemetry_driver_1
+        if "telemetry_updated" not in st.session_state:
+            st.session_state.telemetry_updated = False
+
+        # Callbacks set a flag instead of causing heavy computations directly
+        def _on_change_driver():
+            st.session_state.telemetry_updated = True
+
         col1, col2 = st.columns(2)
         with col1:
-            d1 = st.selectbox("Driver 1", options=drivers)
+            st.selectbox("Driver 1", options=drivers, key="telemetry_driver_1", on_change=_on_change_driver)
         with col2:
-            d2 = st.selectbox("Driver 2", options=drivers, index=min(1, len(drivers)-1))
-        if d1 and d2 and d1 != d2:
-            try:
-                tel_compare = telemetry_overlay_data(session, d1, d2)
-                t_tabs = st.tabs(["Speed", "Throttle/Brake", "Matplotlib Overlay"])
-                with t_tabs[0]:
-                    st.plotly_chart(plot_telemetry_speed_compare(tel_compare, d1, d2), use_container_width=True)
-                with t_tabs[1]:
-                    st.plotly_chart(plot_throttle_brake(tel_compare, d1, d2), use_container_width=True)
-                with t_tabs[2]:
-                    st.pyplot(matplotlib_speed_overlay(tel_compare, d1, d2))
-            except Exception as e:
-                st.warning(f"Telemetry unavailable: {e}")
+            st.selectbox("Driver 2", options=drivers, key="telemetry_driver_2", on_change=_on_change_driver)
+
+        # Only compute telemetry when driver choices are changed and both drivers selected
+        d1 = st.session_state.telemetry_driver_1
+        d2 = st.session_state.telemetry_driver_2
+        if d1 and d2 and d1 != d2 and st.session_state.telemetry_updated:
+            with st.spinner("Loading telemetry…"):
+                try:
+                    # Use cached telemetry compare to avoid repeated heavy computation
+                    tel_compare = cached_telemetry_compare(year, gp_name, session_type, d1, d2)
+                    t_tabs = st.tabs(["Speed", "Throttle/Brake", "Matplotlib Overlay"])
+                    with t_tabs[0]:
+                        st.plotly_chart(plot_telemetry_speed_compare(tel_compare, d1, d2), use_container_width=True)
+                    with t_tabs[1]:
+                        st.plotly_chart(plot_throttle_brake(tel_compare, d1, d2), use_container_width=True)
+                    with t_tabs[2]:
+                        st.pyplot(matplotlib_speed_overlay(tel_compare, d1, d2))
+                except Exception as e:
+                    st.warning(f"Telemetry unavailable: {e}")
+                finally:
+                    # Reset the flag so telemetry doesn't recompute on unrelated reruns
+                    st.session_state.telemetry_updated = False
         else:
-            st.info("Select two distinct drivers.")
+            st.info("Select two distinct drivers and change a selection to load telemetry.")
 
 # --- STRATEGY PAGE ---
 with pages[3]:
