@@ -1,0 +1,32 @@
+.venv/
+.env
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+ENV/
+build/
+dist/
+.eggs/
+*.egg-info/
+.python-version
+.mypy_cache/
+.pytest_cache/
+.ipynb_checkpoints/
+.DS_Store
+.fastf1_cache/
+# IDEs
+.vscode/
+.idea/
+
+# macOS
+.DS_Store
+
+# Logs
+*.log
+
+# SQLite
+*.sqlite3

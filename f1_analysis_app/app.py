@@ -3,6 +3,15 @@ from __future__ import annotations
 
 import streamlit as st
 import pandas as pd
+import os
+
+import fastf1
+# Robust cache initialization: use env FASTF1_CACHE_DIR if set, else local project cache.
+# Create directory if missing to avoid NotADirectoryError.
+CACHE_DIR = os.getenv("FASTF1_CACHE_DIR", os.path.join(os.path.dirname(__file__), ".fastf1_cache"))
+os.makedirs(CACHE_DIR, exist_ok=True)
+fastf1.Cache.enable_cache(CACHE_DIR)
+
 
 from backend import (
     load_session,

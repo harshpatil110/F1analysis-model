@@ -11,9 +11,15 @@ from fastf1.core import Session
 import pandas as pd
 from typing import List, Dict, Optional
 
-# Enable cache (user's local path). Adjust path if needed.
-# This will speed up repeated queries drastically.
-fastf1.Cache.enable_cache(".fastf1_cache")
+# Enable cache (user's local path). Use environment variable FASTF1_CACHE_DIR if set,
+# otherwise default to a local .fastf1_cache directory inside the package folder.
+# Create the directory before enabling the cache to avoid NotADirectoryError.
+import os
+
+_DEFAULT_CACHE = os.getenv("FASTF1_CACHE_DIR") or os.path.join(os.path.dirname(__file__), "..", ".fastf1_cache")
+_DEFAULT_CACHE = os.path.abspath(_DEFAULT_CACHE)
+os.makedirs(_DEFAULT_CACHE, exist_ok=True)
+fastf1.Cache.enable_cache(_DEFAULT_CACHE)
 
 SESSION_NAME_MAP = {
     "FP1": "Practice 1",
@@ -77,8 +83,23 @@ def get_drivers(session: Session) -> List[str]:
 
 def get_team_colors() -> Dict[str, str]:
     """Return mapping team name -> color hex string."""
-    from fastf1.plotting import TEAM_COLORS
-    return TEAM_COLORS.copy()
+    # fastf1's plotting module may expose TEAM_COLORS in some versions.
+    # Be defensive: try multiple imports and fall back to an empty dict so plotting
+    # uses default colors if TEAM_COLORS is unavailable.
+    try:
+        from fastf1.plotting import TEAM_COLORS
+        return TEAM_COLORS.copy()
+    except Exception:
+        try:
+            # older/newer versions might store colors differently
+            import fastf1.plotting as ffplot
+            tc = getattr(ffplot, "TEAM_COLORS", None) or getattr(ffplot, "team_colors", None)
+            if isinstance(tc, dict):
+                return tc.copy()
+        except Exception:
+            pass
+    # Fallback: empty mapping -> plotly will choose default colors
+    return {}
 
 
 def get_driver_team_map(session: Session) -> Dict[str, str]:
