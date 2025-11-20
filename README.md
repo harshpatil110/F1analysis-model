@@ -1,4 +1,4 @@
-# 📘 README.md — F1 Analysis Model (Python + FastF1 + Streamlit)
+# F1 Analysis Model (Python + FastF1 + Streamlit)
 
 # 🏎️ Formula One Analysis Dashboard
 A complete **F1 data analysis platform** built using **Python, FastF1, Streamlit, Pandas, Plotly, and Matplotlib**.  
@@ -8,8 +8,7 @@ This application allows you to explore **telemetry, race pace, strategy, sector 
 
 ## 🚀 Live Demo
 *(Add your Streamlit Cloud URL here after deployment)*  
-👉 **Live App:** https://your-app-url.streamlit.app
-
+👉 **Live App:** [https://f1-analysis-harsh.streamlit.app/](https://f1-analysis-harsh.streamlit.app/)
 ---
 
 ## 🎯 Project Overview
