@@ -62,23 +62,6 @@ This project includes:
 
 ---
 
-## 📂 Project Structure
-/f1_analysis_app
-│── app.py
-│── requirements.txt
-│── /backend
-│      ├── data_loader.py
-│      ├── analysis.py
-│      ├── telemetry.py
-│      ├── compare.py
-│      ├── strategy.py
-│      ├── ml_model.py
-│── /utils
-│      ├── plotting.py
-│      ├── helpers.py
-│── /assets
-       ├── logo.png
-
 ---
 
 ## 🛠️ Installation
