@@ -7,7 +7,7 @@ This application allows you to explore **telemetry, race pace, strategy, sector 
 ---
 
 ## 🚀 Live Demo
-*(Add your Streamlit Cloud URL here after deployment)*  
+ 
 👉 **Live App:** [https://f1-analysis-harsh.streamlit.app/](https://f1-analysis-harsh.streamlit.app/)
 ---
 
@@ -153,6 +153,6 @@ tests/
 - Formula 1  
 - Streamlit  
 
----
+
 
 
