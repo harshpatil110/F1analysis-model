@@ -194,6 +194,63 @@ with pages[2]:
         else:
             st.info("Select two distinct drivers and change a selection to load telemetry.")
 
+        # --- Circuit Map Comparison (added feature) ---
+        try:
+            # Import the backend builder (kept separate from Streamlit to allow caching)
+            from backend.circuit_map import build_circuit_comparison_map
+
+            @st.cache_data
+            def load_aligned_telemetry(session_key: str, d1: str, d2: str):
+                # This helper simply proxies to the backend builder which returns a figure.
+                # Named per requirements; kept small so caching keys are sensible.
+                session = st.session_state.get("f1_session")
+                if session is None:
+                    return None
+                # backend returns a full Plotly figure
+                return build_circuit_comparison_map(session, d1, d2)
+
+            @st.cache_data
+            def circuit_map_cached(session_key: str, driver1: str, driver2: str):
+                return load_aligned_telemetry(session_key, driver1, driver2)
+
+            st.subheader("Circuit Map — Driver Performance Split")
+            session = st.session_state.get("f1_session")
+            if session is not None:
+                # Build a stable session_key using the stored session_info when available.
+                # Some FastF1 Session objects may not expose attributes like `year`.
+                sess_info = st.session_state.get("session_info")
+                if sess_info and len(sess_info) == 3:
+                    year_val, gp_val, stype_val = sess_info
+                    session_key = f"{gp_val}_{year_val}_{stype_val}"
+                else:
+                    # Fallback: use event name and session name/type safely
+                    try:
+                        event_name = session.event.get("EventName") if isinstance(session.event, dict) else getattr(session.event, 'EventName', None)
+                    except Exception:
+                        event_name = None
+                    if not event_name:
+                        # try other keys
+                        try:
+                            event_name = session.event.get('Name') if isinstance(session.event, dict) else getattr(session.event, 'Name', None)
+                        except Exception:
+                            event_name = 'session'
+                    sess_type = getattr(session, 'name', None) or getattr(session, 'session_type', None) or 'session'
+                    session_key = f"{event_name}_{sess_type}"
+                selected_driver_1 = st.session_state.get("telemetry_driver_1", None)
+                selected_driver_2 = st.session_state.get("telemetry_driver_2", None)
+                if selected_driver_1 and selected_driver_2 and selected_driver_1 != selected_driver_2:
+                    with st.spinner("Building circuit comparison map..."):
+                        fig = circuit_map_cached(session_key=session_key, driver1=selected_driver_1, driver2=selected_driver_2)
+                        if fig is None:
+                            st.info("Circuit map unavailable for this session/drivers.")
+                        else:
+                            st.plotly_chart(fig, use_container_width=True)
+                else:
+                    st.info("Choose two distinct drivers to build the circuit comparison map.")
+        except Exception as _err:
+            # Non-fatal: show a small warning but do not break the page
+            st.warning(f"Circuit map feature unavailable: {_err}")
+
 # --- STRATEGY PAGE ---
 with pages[3]:
     st.subheader("Strategy Analysis")
