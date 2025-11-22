@@ -251,6 +251,84 @@ with pages[2]:
             # Non-fatal: show a small warning but do not break the page
             st.warning(f"Circuit map feature unavailable: {_err}")
 
+        # --- Additional telemetry comparison plots (speed, throttle/brake, gear) ---
+        try:
+            from backend.telemetry import get_fastest_lap_telemetry
+            import plotly.graph_objects as go
+
+            @st.cache_data
+            def cached_full_telemetry(year_: int, gp_: str, stype_: str, d1_: str, d2_: str):
+                sess = load_fastf1_session_cached(year_, gp_, stype_)
+                # get full telemetry for both drivers (fastest laps)
+                t1 = get_fastest_lap_telemetry(sess, d1_)
+                t2 = get_fastest_lap_telemetry(sess, d2_)
+                # keep relevant columns and drop NaNs on Distance
+                cols = ["Distance", "Speed", "Throttle", "Brake", "nGear", "DRS", "X", "Y"]
+                for df in (t1, t2):
+                    for c in cols:
+                        if c not in df.columns:
+                            df[c] = pd.NA
+                t1s = t1[cols].sort_values("Distance").dropna(subset=["Distance"])
+                t2s = t2[cols].sort_values("Distance").dropna(subset=["Distance"])    
+                merged = pd.merge_asof(
+                    t1s, t2s,
+                    on="Distance",
+                    direction="nearest",
+                    suffixes=(f"_{d1_}", f"_{d2_}"),
+                )
+                return merged
+
+            # Only show these comparison plots if drivers are selected
+            selected_driver_1 = st.session_state.get("telemetry_driver_1")
+            selected_driver_2 = st.session_state.get("telemetry_driver_2")
+            if selected_driver_1 and selected_driver_2 and selected_driver_1 != selected_driver_2:
+                with st.spinner("Loading telemetry comparisons..."):
+                    try:
+                        tel_full = cached_full_telemetry(year, gp_name, session_type, selected_driver_1, selected_driver_2)
+                        if tel_full is None or tel_full.empty:
+                            st.info("Telemetry comparison data unavailable.")
+                        else:
+                            # Speed comparison (reuse plotting helper)
+                            try:
+                                fig_speed = plot_telemetry_speed_compare(tel_full, selected_driver_1, selected_driver_2)
+                                st.plotly_chart(fig_speed, use_container_width=True)
+                            except Exception:
+                                # fallback: build simple speed trace
+                                fig_s = go.Figure()
+                                fig_s.add_trace(go.Scatter(x=tel_full["Distance"], y=tel_full[f"Speed_{selected_driver_1}"], name=selected_driver_1))
+                                fig_s.add_trace(go.Scatter(x=tel_full["Distance"], y=tel_full[f"Speed_{selected_driver_2}"], name=selected_driver_2))
+                                fig_s.update_layout(title="Speed Comparison", xaxis_title="Distance (m)", yaxis_title="Speed (km/h)", template="plotly_dark")
+                                st.plotly_chart(fig_s, use_container_width=True)
+
+                            # Throttle / Brake comparison (reuse helper)
+                            try:
+                                fig_tb = plot_throttle_brake(tel_full, selected_driver_1, selected_driver_2)
+                                st.plotly_chart(fig_tb, use_container_width=True)
+                            except Exception:
+                                fig_tb2 = go.Figure()
+                                fig_tb2.add_trace(go.Scatter(x=tel_full["Distance"], y=tel_full[f"Throttle_{selected_driver_1}"], name=f"Throttle {selected_driver_1}"))
+                                fig_tb2.add_trace(go.Scatter(x=tel_full["Distance"], y=tel_full[f"Brake_{selected_driver_1}"], name=f"Brake {selected_driver_1}"))
+                                fig_tb2.add_trace(go.Scatter(x=tel_full["Distance"], y=tel_full[f"Throttle_{selected_driver_2}"], name=f"Throttle {selected_driver_2}"))
+                                fig_tb2.add_trace(go.Scatter(x=tel_full["Distance"], y=tel_full[f"Brake_{selected_driver_2}"], name=f"Brake {selected_driver_2}"))
+                                fig_tb2.update_layout(title="Throttle / Brake Comparison", xaxis_title="Distance (m)", template="plotly_dark")
+                                st.plotly_chart(fig_tb2, use_container_width=True)
+
+                            # Gear comparison: plot as step lines
+                            try:
+                                fig_gear = go.Figure()
+                                fig_gear.add_trace(go.Scatter(x=tel_full["Distance"], y=tel_full.get(f"nGear_{selected_driver_1}", tel_full.get(f"nGear_{selected_driver_1}")), mode='lines', name=f"Gear {selected_driver_1}"))
+                                fig_gear.add_trace(go.Scatter(x=tel_full["Distance"], y=tel_full.get(f"nGear_{selected_driver_2}", tel_full.get(f"nGear_{selected_driver_2}")), mode='lines', name=f"Gear {selected_driver_2}"))
+                                fig_gear.update_layout(title="Gear Comparison", xaxis_title="Distance (m)", yaxis_title="Gear", template="plotly_dark")
+                                st.plotly_chart(fig_gear, use_container_width=True)
+                            except Exception:
+                                pass
+                    except Exception as e:
+                        st.warning(f"Failed building comparison plots: {e}")
+            else:
+                st.info("Choose two distinct drivers to see detailed telemetry comparisons (speed/throttle/brake/gear).")
+        except Exception as e:
+            st.warning(f"Additional telemetry plots unavailable: {e}")
+
 # --- STRATEGY PAGE ---
 with pages[3]:
     st.subheader("Strategy Analysis")
