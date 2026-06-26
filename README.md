@@ -127,7 +127,6 @@ tests/
 - Live leaderboard  
 - AI overtaking prediction  
 - Monte-Carlo strategy optimizer  
-- Race simulation engine  
 
 ---
 
